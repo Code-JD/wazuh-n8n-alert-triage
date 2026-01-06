@@ -188,7 +188,7 @@ wazuh-n8n-alert-triage/
 ## 👤 Author
 
 **Jonathan Herring**
-- LinkedIn: [[Your LinkedIn Profile]](https://www.linkedin.com/in/jonathan-herring-code/)
+- LinkedIn: [[Jonathan Herring]](https://www.linkedin.com/in/jonathan-herring-code/)
 
 ---
 
