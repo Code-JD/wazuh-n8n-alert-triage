@@ -1,0 +1,447 @@
+{
+  "name": "Wazuh Automated AI Triage - Production",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1584,
+        -1616
+      ],
+      "id": "afe79c7a-604e-4a08-827a-4b7ecb726865",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "hits.hits",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -1200,
+        -1552
+      ],
+      "id": "18fb96ce-4eb8-475c-aee0-c5570a3e5411",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "487c2965-e263-41e8-8c22-eb6a9d34b08b",
+              "name": "rule_id",
+              "value": "={{ $json._source.rule.id }}",
+              "type": "string"
+            },
+            {
+              "id": "c04a24ce-0a02-4753-bc29-63dde077b155",
+              "name": "rule_description",
+              "value": "={{ $json._source.rule.description }}",
+              "type": "string"
+            },
+            {
+              "id": "ef1488af-626f-43ad-864c-7be15294a0eb",
+              "name": "rule_level",
+              "value": "={{ $json._source.rule.level }}",
+              "type": "string"
+            },
+            {
+              "id": "daea42db-1543-4c33-894e-2698bcf7e87f",
+              "name": "agent_name",
+              "value": "={{ $json._source.agent.name }}",
+              "type": "string"
+            },
+            {
+              "id": "bbd704f4-87d0-442e-85d9-0d281f61562b",
+              "name": "timestamp",
+              "value": "={{ $json._source.timestamp }}",
+              "type": "string"
+            },
+            {
+              "id": "5c65891a-d12a-4b68-a02d-d012c65521cf",
+              "name": "full_log",
+              "value": "={{ $json._source.full_log }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1040,
+        -1456
+      ],
+      "id": "e7da3639-4c8a-415e-93fc-fd1d44e1a77e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the formatted alert report from previous node\nconst alertReport = items[0].json.formatted_report;\n\n// Build Claude API request body\nconst claudeRequest = {\n  model: \"claude-sonnet-4-20250514\",\n  max_tokens: 1024,\n  messages: [\n    {\n      role: \"user\",\n      content: `Analyze these security alerts and provide a JSON response with the following structure for each alert:\n{\n  \"alerts\": [\n    {\n      \"alert_number\": <number>,\n      \"category\": \"<false_positive|benign|suspicious|critical>\",\n      \"priority\": <1-10, where 1 is highest priority>,\n      \"reasoning\": \"<brief explanation>\",\n      \"recommended_action\": \"<what to do>\"\n    }\n  ],\n  \"overall_risk\": \"<low|medium|high>\",\n  \"summary\": \"<brief overall summary>\"\n}\n\nSecurity Alerts:\n${alertReport}`\n    }\n  ]\n};\n\nreturn [{ json: claudeRequest }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        -1360
+      ],
+      "id": "fd857110-9dd6-4be1-a2c6-e04c45b8513d",
+      "name": "Build Claude Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create a formatted text report of alerts\nlet report = \"=== WAZUH SECURITY ALERTS ===\\n\\n\";\nreport += `Total Alerts: ${items.length}\\n`;\nreport += `Generated: ${new Date().toISOString()}\\n\\n`;\n\nitems.forEach((item, index) => {\n  const alert = item.json;\n  report += `--- ALERT #${index + 1} ---\\n`;\n  report += `Rule ID: ${alert.rule_id}\\n`;\n  report += `Severity Level: ${alert.rule_level}\\n`;\n  report += `Description: ${alert.rule_description}\\n`;\n  report += `Agent: ${alert.agent_name}\\n`;\n  report += `Timestamp: ${alert.timestamp}\\n`;\n  report += `Full Log: ${alert.full_log}\\n\\n`;\n});\n\nreturn [{ json: { formatted_report: report } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -848,
+        -1360
+      ],
+      "id": "a3695499-a982-4633-a37c-cc8c0cf5c406",
+      "name": "Alert-Formatter"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://192.168.50.176:9200/wazuh-alerts-*/_search",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": {\n    \"match_all\": {}\n  },\n  \"size\": 10,\n  \"sort\": [\n    {\n      \"timestamp\": {\n        \"order\": \"desc\"\n      }\n    }\n  ]\n}",
+        "options": {
+          "allowUnauthorizedCerts": true
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1392,
+        -1584
+      ],
+      "id": "63f62a3d-b01b-486a-b209-843d6714991b",
+      "name": "Wazuh Query",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "6P4XV4N6hSRWmzRS",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "YOU_API_KEY_HERE"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -464,
+        -1360
+      ],
+      "id": "87382dab-f568-48c8-9923-14b64482d03b",
+      "name": "Claude API call"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get Claude's response\nconst response = items[0].json;\n\n// Extract the text content from Claude's response\nlet responseText = response.content[0].text;\n\n// Remove markdown code fences if present\nresponseText = responseText.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n\n// Parse the JSON\nconst analysis = JSON.parse(responseText);\n\n// Return the structured analysis\nreturn [{ json: analysis }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -272,
+        -1360
+      ],
+      "id": "f9b24928-bb07-43b7-b659-086b55a043c4",
+      "name": "Parse Claude Response"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the analysis from previous node\nconst analysis = items[0].json;\n\n// Categorize alerts by priority\nconst critical = [];  // Priority 1-3\nconst high = [];      // Priority 4-5\nconst medium = [];    // Priority 6-7\nconst low = [];       // Priority 8-10\n\nanalysis.alerts.forEach(alert => {\n  const alertData = {\n    ...alert,\n    overall_risk: analysis.overall_risk,\n    summary: analysis.summary\n  };\n  \n  if (alert.priority <= 3) {\n    critical.push(alertData);\n  } else if (alert.priority <= 5) {\n    high.push(alertData);\n  } else if (alert.priority <= 7) {\n    medium.push(alertData);\n  } else {\n    low.push(alertData);\n  }\n});\n\n// Return categorized alerts\nreturn [{\n  json: {\n    critical_alerts: critical,\n    high_priority: high,\n    medium_priority: medium,\n    low_priority: low,\n    total_critical: critical.length,\n    total_high: high.length,\n    total_medium: medium.length,\n    total_low: low.length,\n    overall_risk: analysis.overall_risk,\n    summary: analysis.summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        -1360
+      ],
+      "id": "c77f0c75-9d82-4fd5-a267-f197ea3755aa",
+      "name": "Categorize Alerts"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "2f3b8976-a147-4fc5-be9b-3faf0a3bd9ab",
+              "leftValue": "={{ $json.total_high + $json.total_critical }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        144,
+        -1360
+      ],
+      "id": "c418715b-5568-4c36-8aaf-d4da92c55f75",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        352,
+        -1264
+      ],
+      "id": "93c9638d-476b-4b40-a273-d098fc3dee6f",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = items[0].json;\n\n// Build alert message\nlet message = `🚨 SECURITY ALERT - Action Required\\n\\n`;\nmessage += `Overall Risk: ${data.overall_risk.toUpperCase()}\\n`;\nmessage += `Summary: ${data.summary}\\n\\n`;\n\nif (data.total_critical > 0) {\n  message += `⚠️ CRITICAL ALERTS: ${data.total_critical}\\n`;\n  data.critical_alerts.forEach(alert => {\n    message += `\\n[CRITICAL] Alert #${alert.alert_number}\\n`;\n    message += `Category: ${alert.category}\\n`;\n    message += `Reasoning: ${alert.reasoning}\\n`;\n    message += `Action: ${alert.recommended_action}\\n`;\n  });\n}\n\nif (data.total_high > 0) {\n  message += `\\n⚠️ HIGH PRIORITY ALERTS: ${data.total_high}\\n`;\n  data.high_priority.forEach(alert => {\n    message += `\\n[HIGH] Alert #${alert.alert_number}\\n`;\n    message += `Category: ${alert.category}\\n`;\n    message += `Reasoning: ${alert.reasoning}\\n`;\n    message += `Action: ${alert.recommended_action}\\n`;\n  });\n}\n\nmessage += `\\n---\\nGenerated: ${new Date().toISOString()}\\n`;\n\nreturn [{ json: { alert_message: message, ...data } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -1456
+      ],
+      "id": "0e931f43-2cd9-4a0a-8383-a6d0638ce1af",
+      "name": "Format Alert Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = items[0].json;\n\nreturn [{\n  json: {\n    alert_type: \"HIGH_PRIORITY_DETECTED\",\n    timestamp: new Date().toISOString(),\n    critical_count: data.total_critical,\n    high_count: data.total_high,\n    medium_count: data.total_medium,\n    low_count: data.total_low,\n    overall_risk: data.overall_risk,\n    summary: data.summary,\n    formatted_alert: data.alert_message,\n    critical_alerts: data.critical_alerts,\n    high_priority_alerts: data.high_priority\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -1456
+      ],
+      "id": "a30938ce-cc7d-40a5-9cf7-1dae27f47868",
+      "name": "Final Summary - High Prioirty"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = items[0].json;\n\nreturn [{\n  json: {\n    alert_type: \"ALL_CLEAR\",\n    timestamp: new Date().toISOString(),\n    critical_count: 0,\n    high_count: 0,\n    medium_count: data.total_medium,\n    low_count: data.total_low,\n    overall_risk: data.overall_risk,\n    summary: data.summary,\n    message: \"✅ All alerts are low priority - no immediate action required\"\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -1264
+      ],
+      "id": "fe5e9142-97af-4d5c-9a42-f4c2974be3a4",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Wazuh Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Alert-Formatter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert-Formatter": {
+      "main": [
+        [
+          {
+            "node": "Build Claude Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Claude Request": {
+      "main": [
+        [
+          {
+            "node": "Claude API call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wazuh Query": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API call": {
+      "main": [
+        [
+          {
+            "node": "Parse Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Categorize Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Categorize Alerts": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Format Alert Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Alert Message": {
+      "main": [
+        [
+          {
+            "node": "Final Summary - High Prioirty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Summary - High Prioirty": {
+      "main": [
+        []
+      ]
+    },
+    "No Operation, do nothing": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "93377776-0ca4-4bb4-8763-ad8999cddbf7",
+  "meta": {
+    "instanceId": "b567d3c8d87fb7f8b70a1dd36ea2ab492a07686b7429a62e28beb58f3b19cc21"
+  },
+  "id": "Ec5YGRds61HlcBqDE0zYG",
+  "tags": []
+}
