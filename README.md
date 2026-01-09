@@ -1,3 +1,6 @@
+![Status](https://img.shields.io/badge/status-active-success)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Wazuh](https://img.shields.io/badge/wazuh-4.7-orange)
 # Wazuh n8n Alert Triage System
 
 An automated cybersecurity alert triage system that integrates Wazuh SIEM with n8n workflow automation and Claude AI for intelligent security alert analysis and prioritization.
@@ -381,6 +384,16 @@ wazuh-n8n-alert-triage/
 - [n8n Documentation](https://docs.n8n.io/)
 - [Docker Documentation](https://docs.docker.com/)
 - [Claude AI Documentation](https://docs.anthropic.com/)
+
+## Skills Demonstrated in This Project
+- SIEM Deployment & Configuration
+- Security Event Analysis
+- Workflow Automation
+- API Integration
+- AI/LLM Implementation
+- Docker Containerization
+- Linux System Administration
+- Cost Optimization
 
 ### Related Concepts
 - SIEM fundamentals and log analysis
